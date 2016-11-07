@@ -165,9 +165,13 @@ Email templates are stored in an S3 bucket in the same location as the configura
 
 ###Testing and Debugging
 
-#### Testing
+#### Email Simulation
 This lambda will accept a query parameter `simulate=True` to enable running the lambda but not actually sending the emails. All other
 logic is implemented as expected.
 
+#### Testing
+The /test directory contains a set of unit tests for the lambda. The lambda will accept an alternate configuration
+if it is specified as a `test-config` entry in the event dictionary passed into the handle_lambda function.
+
 #### Debug Logging
-This lambda will accept a query parameter 'debug=True' to turn on debug level logging into either the local or CloudWatch logs.
+This lambda will accept a query parameter `debug=True` to turn on debug level logging into either the local or CloudWatch logs.
