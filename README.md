@@ -161,3 +161,13 @@ Email templates are stored in an S3 bucket in the same location as the configura
 * `taggedRestricted` - Boolean value. True if the API has been tagged "Restricted".
 * `tier` - The throttling tier associated with this subscription request.
 * `workflowReference` - The WSO2 assigned reference to this subscription request. It is required to uniquely identify the request.
+
+
+###Testing and Debugging
+
+#### Testing
+This lambda will accept a query parameter `simulate=True` to enable running the lambda but not actually sending the emails. All other
+logic is implemented as expected.
+
+#### Debug Logging
+This lambda will accept a query parameter 'debug=True' to turn on debug level logging into either the local or CloudWatch logs.
