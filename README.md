@@ -4,7 +4,7 @@ This is the first of the Lambda functions involved in the processing of subscrip
 See [https://github.com/byu-oit-appdev/wso2-custom-workflow-extensions] for the initial WSO2 workflow extension that starts the process.
 
 The process is as follows:
-![Restricted Subscription Overall Process](docimages/WSO2RestrictedSubscription.pdf "Restricted Subscription Overall Process")
+![Restricted Subscription Overall Process](docimages/WSO2RestrictedSubscription.png "Restricted Subscription Overall Process")
 
 ### Requirements:
 
