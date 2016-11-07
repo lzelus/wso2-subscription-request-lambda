@@ -6,7 +6,7 @@ See [https://github.com/byu-oit-appdev/wso2-custom-workflow-extensions] for the 
 The process is as follows:
 ![Restricted Subscription Overall Process](docimages/WSO2RestrictedSubscription.png "Restricted Subscription Overall Process")
 
-### Requirements:
+### Requirements
 
 1. AWS Boto3 must be installed and configured with access keys for local development and testing.
 1. Uses [Airspeed](https://github.com/purcell/airspeed) for Velocity compatible template processing. Airspeed must be installed locally for this project to be included
@@ -16,13 +16,13 @@ in the zip file and recognized by Lambdas.
 1. An IAM policy must exist that will give the lambdas access to S3 (read only), the Dynamo DB table, and SES.
 1. SES must be configured and approved to process email.
 
-### Packaging:
+### Packaging
 1. Use `pip install --upgrade --target . airspeed `
    from the root of the project to install Airspeed and its dependent packages into the project directory.
 1. Zip the contents of the root directory into a single file. Be sure to get sub directories. `zip -r AWSLambda.zip .` should
 work on *nix based systems.
 
-### Deployment:
+### Deployment
 1. Create a new AWS Lambda.
     1. Give it the same name as the project.
     1. Give it a description.
@@ -52,7 +52,7 @@ work on *nix based systems.
                 1. Use `$util.parseJson($input.json('$.errorMessage'))`
 
 
-#### Configuration:
+### Configuration
 
 The configuration is read from a file in the S3 Bucket "byu-wso2" called "wso2subscriptionapproval.config".
 This file is in JSON format and contains the following:
@@ -141,7 +141,7 @@ There are a few special other elements as well:
  to until the enabling/deleting of subscription requests is automated via an API.
 * `source_email_address` - The email address to use as the sender for all emails.
 
-###Email Templates:
+###Email Templates
 
 Email templates are stored in an S3 bucket in the same location as the configuration file. This lambda uses [Airspeed](https://github.com/purcell/airspeed) to process the email templates. Airspeed implements a subset of [Velocity](http://velocity.apache.org/engine/1.7/user-guide.html#what-is-velocity) email templates. The templates have the following variables available to them for use:
 
