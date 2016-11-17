@@ -1,10 +1,33 @@
 from unittest import TestCase
 
+import boto3
+
 import lambda_function
 import json
 
 
 class TestLambda_handler(TestCase):
+
+    def setUp(self):
+        self.deleteRecord()
+
+    def tearDown(self):
+        self.deleteRecord()
+
+    def deleteRecord(self):
+        db = boto3.resource('dynamodb')
+        table = db.Table('WSO2SubscriptionRequest')
+        response = table.get_item(
+            Key={
+                'workflowReference': 'test1'
+            }
+        )
+        if "Item" in response:
+            table.delete_item(
+                Key={
+                'workflowReference': 'test1'
+                }
+            )
 
     def test_success(self):
         """Tests a successful run - uses the simluate querystring parameter to not actually send the emails"""
