@@ -97,9 +97,12 @@ class TestLambda_handler(TestCase):
         }
         """)
 
-#        result = lambda_handler(testevent, None)
-#      print("result from test " + str(result))
-        self.assertRaises(lambda_function.RequestError, lambda_function.lambda_handler, testevent, None)
+        try:
+            result = lambda_function.lambda_handler(testevent, None)
+            print("result from test " + str(result))
+        except lambda_function.RequestError as err:
+            print err
+            self.assertEqual("BadInput", err.getStatusCode(),"statusCode should be BadInput")
         return
 
     def test_no_owner_emails(self):
@@ -236,6 +239,11 @@ class TestLambda_handler(TestCase):
         """)
 
         testcontext = testevent['context']
-        self.assertRaises(lambda_function.RequestError, lambda_function.lambda_handler, testevent, None)
+        try:
+            result = lambda_function.lambda_handler(testevent, testcontext)
+            print("result from test " + str(result))
+        except lambda_function.RequestError as err:
+            print err
+            self.assertEqual("BadInput", err.getStatusCode(),"statusCode should be BadInput")
         return
 

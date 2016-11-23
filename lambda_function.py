@@ -50,6 +50,7 @@ def respond(err, res=None):
         },
     }
 
+
 def lambda_handler(event, context):
 
     # be sure event format is correct

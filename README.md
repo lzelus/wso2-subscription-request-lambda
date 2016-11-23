@@ -19,7 +19,7 @@ in the zip file and recognized by Lambdas.
 ### Packaging
 1. Use `pip install --upgrade --target . airspeed `
    from the root of the project to install Airspeed and its dependent packages into the project directory.
-1. Zip the contents of the root directory into a single file. Be sure to get sub directories. `zip -r AWSLambda.zip .` should
+1. Zip the contents of the root directory into a single file. Be sure to get sub directories. `zip -r AWSLambda.zip *` should
 work on *nix based systems.
 
 ### Deployment
