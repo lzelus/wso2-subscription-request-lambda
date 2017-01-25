@@ -1,0 +1,133 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: BYU's API Subscription Approval Service.
+Parameters:
+  S3Bucket:
+    Description: The S3 bucket where the lambda functions will check for their configuration.
+    Type: String
+    Default: "None"
+  S3Path:
+    Description: The folder within the S3 bucket that contains the config files.  The final value will be s3://{S3Bucket}/{S3Path}/{Stack-Name}/config.yaml
+    Type: String
+    Default: "None"
+
+Conditions:
+  UseS3: !Not [!Equals [!Ref S3Bucket, None]]
+
+Resources:
+  PostFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: wso2_subscription_approval.post
+      Runtime: python2.7
+      Role: !GetAtt ServiceRole.Arn
+      Environment:
+        Variables:
+          SubscriptionTable: !Ref SubTable
+          ConfigS3: !If [UseS3, !Join ["", ["s3://", !Ref S3Bucket, "/", !Ref S3Path, "/", !Ref "AWS::StackName", "/config.yaml"]], ""]
+      Events:
+        PutResource:
+          Type: Api
+          Properties:
+            Path: /subscriptionRequests
+            Method: post
+      CodeUri: lambda/
+      Timeout: 10
+  GetFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: wso2_subscription_approval.get
+      Runtime: python2.7
+      Role: !GetAtt ServiceRole.Arn
+      Environment:
+        Variables:
+          SubscriptionTable: !Ref SubTable
+          ConfigS3: !If [UseS3, !Join ["", ["s3://", !Ref S3Bucket, "/", !Ref S3Path, "/", !Ref "AWS::StackName", "/config.yaml"]], ""]
+      Events:
+        GetResource:
+          Type: Api
+          Properties:
+            Path: /subscriptionRequests/{workflowReference}
+            Method: get
+      CodeUri: lambda/
+      Timeout: 10
+  SubTable:
+    Type: AWS::Serverless::SimpleTable
+    Properties:
+      PrimaryKey:
+        Name: workflowReference
+        Type: String
+  ServiceRole:
+    Type: "AWS::IAM::Role"
+    Properties: 
+      AssumeRolePolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          - 
+            Effect: "Allow"
+            Principal: 
+              Service: 
+                - "lambda.amazonaws.com"
+            Action: 
+              - "sts:AssumeRole"
+      Policies:
+        - 
+          PolicyName: Logs_ReadWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: 
+                  - "logs:CreateLogGroup"
+                  - "logs:CreateLogStream"
+                  - "logs:DescribeLogGroups"
+                  - "logs:DescribeLogStreams"
+                  - "logs:FilterLogEvents"
+                  - "logs:GetLogEvents"
+                  - "logs:PutLogEvents"
+                Resource: !Join ["", ["arn:aws:logs:*:*:/aws/lambda/", !Ref "AWS::StackName", "*"]]
+        - 
+          PolicyName: DynamoDB_ReadWrite
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: 
+                  - "dynamodb:GetItem"
+                  - "dynamodb:Query"
+                  - "dynamodb:Scan"
+                  - "dynamodb:DeleteItem"
+                  - "dynamodb:PutItem"
+                  - "dynamodb:UpdateItem"
+                  - "dynamodb:DescribeTable"
+                Resource: !Join ["", ["arn:aws:dynamodb:*:*:table/", !Ref "AWS::StackName", "*"]]
+        -
+          PolicyName: SES_SendEmail
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action: 
+                  - "ses:SendEmail"
+                Resource: "arn:aws:ses:*:*:identity/*"
+  S3Policy:
+    Type: "AWS::IAM::Policy"
+    Condition: UseS3
+    Properties:
+      PolicyName: S3_ReadWrite
+      Roles:
+        - !Ref ServiceRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Action: 
+              - "s3:ListBucket"
+              - "s3:PutObject"
+              - "s3:GetObject"
+              - "s3:DeleteObject"
+            Resource: !Join ["", ["arn:aws:s3:::", !Ref S3Bucket, "/", !Ref S3Path, "/", !Ref "AWS::StackName", "/*"]]

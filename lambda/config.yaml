@@ -1,0 +1,174 @@
+---
+
+no_owner_name: The Default Approver (no owner was entered for this API)
+# permitted_emails:
+#   - lzelus@ucsd.edu
+fallback_email: lzelus@ucsd.edu
+
+properties:
+  subscriber_email: |
+     #if(${request.subscriberclaims["http://wso2.org/claims/emailaddress"]})${request.subscriberclaims["http://wso2.org/claims/emailaddress"]}#end
+
+# Configuration settings for each support APIM Instance.
+# The instance is selected by looking for the instance name in the callback url.
+# Any callback url that doesn't match an instance, or an instance without a username and password is an error.
+# Any properties of the instance will be available to the templates in the apim variable.
+apimInstances:
+  -
+    name: api.ucsd.edu
+    username: admin
+    password: "*****"
+    no_owner_email_address: lzelus@ucsd.edu
+    source_email_address: lzelus@ucsd.edu
+    properties:
+      storeurl: https://api.ucsd.edu/store
+      supportemail: lzelus@ucsd.edu
+      supportname: UCSD's APIM Administrator
+      footer: |
+        <p>If you have any questions please contact <a href="mailto:${properties.supportemail}">${properties.supportname}</a></p>
+
+  -
+    name: api-qa.ucsd.edu
+    username: admin
+    password: "*****"
+    no_owner_email_address: lzelus@ucsd.edu
+    source_email_address: lzelus@ucsd.edu
+    properties:
+      storeurl: https://api-qa.ucsd.edu/store
+      supportemail: lzelus@ucsd.edu
+      supportname: UCSD's APIM Administrator
+      footer: |
+        <p>If you have any questions please contact <a href="mailto:${properties.supportemail}">${properties.supportname}</a></p>
+
+
+# The following templates cover the email messages that can be sent.  Each template can have a subject, html and text element.
+# Setting both text and html will allow the email client to determine which to render.
+
+# Additionally a template can have the property skip set to True, this will prevent this email from being sent.
+# Non skipped templates must have:
+#   a subject
+#   a text element, html element or both
+
+# Subject, text, html and instance properties are all treated as velocity templates. See the readme.md file for more details on the available variables.
+
+# Finally you can use YAML's reference system to reuse elements.
+
+templates:
+
+  # Sent to the user letting them know that the subscription request is being reviewed.
+  subscriber_request:
+    subject: "Subscription Request  API: $request.apiName"
+    html: |
+      <p>Your subscription request to <a href="${properties.storeurl}/apis/info?name=${request.apiName}&version=${request.apiVersion}&provider=${request.apiProvider}">$request.apiName</a> has been recieved and is being processed.</p>
+      <p>The following authorized approvers have been notified:</p>
+      <ul>
+        #if( $request.apiBusinessOwnerEmail )
+          <li>Business Owner: #if(${request.apiBusinessOwnerName})${request.apiBusinessOwnerName}#{else}${request.apiBusinessOwnerEmail}#{end}</li>
+        #end
+        #if( $request.apiTechnicalOwnerEmail )
+          <li>Technical Owner: #if(${request.apiTechnicalOwnerName})${request.apiTechnicalOwnerName}#{else}${request.apiTechnicalOwnerEmail}#{end}</li>
+        #end
+      </ul>
+      $properties.footer
+  
+  # Sent to the user letting them know that the subscription request was approved.
+  subscriber_request_approval:
+    subject: "Subscription Request  API: $request.apiName"
+    html: |
+      <p>Your subscription request to <a href="${properties.storeurl}/apis/info?name=${request.apiName}&version=${request.apiVersion}&provider=${request.apiProvider}">$request.apiName</a> has been APPROVED.</p>
+      <p>You can now invoke it with credentials from your ${request.applicationName}, which you can find on the <a href="${properties.storeurl}/site/pages/subscriptions.jag?selectedApp=${request.applicationName}">My Subscriptions</a> page.</p>
+      $properties.footer
+
+  # Sent to the user letting them know that the subscription request was rejected.
+  subscriber_request_rejected:
+    subject: "Subscription Request  API: $request.apiName"
+    html: |
+      <p>Your subscription request to <a href="${properties.storeurl}/apis/info?name=${request.apiName}&version=${request.apiVersion}&provider=${request.apiProvider}">$request.apiName</a> has been REJECTED.</p>
+      <p>This decision was made by ${request.approver}.  Please contact them directly if you feel this was incorrect or for more information.</p>
+      $properties.footer
+
+  # Sent to the API business owner for review.  Should include the approve / reject links.
+  business_owner_request: &business_owner_request
+    subject: "Subscription Request  API: $request.apiName"
+    html: |
+      <p>A Subscription Request to $request.apiName has been submitted for ${request.applicationName} (${request.subscriberId}).</p>
+      #if($request.subscriberclaims["http://wso2.org/claims/emailaddress"])
+        #set( $email = $request.subscriberclaims["http://wso2.org/claims/emailaddress"] )
+        #set( $subscriberLink = "<a href=\"mailto:${email}\">${request.subscriberId}</a>")
+      #else
+        #set( $subscriberLink = "${request.subscriberId}")
+      #end
+      <p>You are listed as an approver for this API.  Please review the request and contact $subscriberLink directly if your have any questions.</>
+      <p>To approve click <a href="${approveUrl}">APPROVE</a></p>
+      <p>To reject click <a href="${rejectUrl}">REJECT</a></p>
+      <p>The request details are:</p>
+      <pre>
+      ${json}
+      </pre>
+      $properties.footer
+
+  # Sent to the API technical owner for review.  Should include the approve / reject links.
+  technical_owner_request: *business_owner_request
+  
+  # Sent to the no_owner_email_address configured above for review when the API has no business or technical owner.  Should include the approve / reject links.
+  no_owner_request: *business_owner_request
+
+  # Sent to the person who approved a request to verify it was successfully approved.  Also to detect impersonation.
+  request_approver:
+    subject: "Subscription Request  API: $request.apiName"
+    html: |
+      <p>You have successfully approved ${request.applicationName}'s' (${request.subscriberId}) subscription to $request.apiName.</p>
+      <p>If this was a mistake or you did not authorize this approval please contact the site adminstrator.</p>
+      $properties.footer
+
+  # Sent to other approvers, notifing them that someone has approved a request.
+  request_approval:
+    subject: "Subscription Request  API: $request.apiName"
+    html: |
+      <p>${request.approver} has approved the subscription of ${request.applicationName} (${request.subscriberId}) to ${request.apiName}</p>
+      <p>If this was a mistake or inappropaite, please contact ${request.approver} directly</p>
+      $properties.footer
+
+  # Sent to the person who rejected a request to verify it was successfully rejected.  Also to detect impersonation.
+  request_rejecter:
+    subject: "Subscription Request  API: $request.apiName"
+    html: |
+      <p>You have successfully REJECTED the subscription of ${request.applicationName} (${request.subscriberId}) to $request.apiName.</p>
+      <p>If this was a mistake or you did not authorize this rejection please contact the site adminstrator.</p>
+      $properties.footer
+
+  # Sent to other approvers, notifing them that someone has rejected a request.
+  request_rejection:
+    subject: "Subscription Request  API: $request.apiName"
+    html: |
+      <p>${request.approver} has REJECTED the subscription of ${request.applicationName} (${request.subscriberId}) to ${request.apiName}</p>
+      <p>If this was a mistake or inappropaite, please contact ${request.approver} directly</p>
+      $properties.footer
+  
+  # Sent to the request_action_email_addresses configured above in the event that the subscription couldn't be automatically approved/rejected.
+  request_action_required:
+    subject: "Subscription Request  API: $request.apiName  ACTION REQUIRED"
+    html: |
+      <p>${request.approver} has ${request.status} the subscription of ${request.applicationName} (${request.subscriberId}) to ${request.apiName}</p>
+      <p>The request could NOT be updated automatically and requires manual intervention</p>
+      $properties.footer
+  
+  # This is the web page that is returned for get operations
+  webpage: 
+    html: |
+      <html>
+          <head>
+              <title>Subscription ${request.workflowReference}</title>
+          </head>
+          <body>
+              <h1>Subscription ${request.workflowReference}</h1>
+              #if($extra.errorMessage)
+                <p style="color:#D8000C;background-color: #FFBABA;">
+                  <strong>${extra.errorMessage}</strong>
+                </p>
+              #end
+              <p>Status: ${request.status}</p>
+              <p>Request:</p>
+              <pre>${json}</pre>
+          </body>
+      </html>
