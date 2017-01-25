@@ -66,8 +66,6 @@ class TestLambda_handler(TestCase):
     "simulate": "True"
   },
   "requestContext": {
-    "accountId": "035170473189",
-    "apiId": "zo60u45plb",
     "httpMethod": "POST",
     "identity": {
       "accessKey": "",
@@ -196,8 +194,6 @@ class TestLambda_handler(TestCase):
      "simulate": "True"
    },
    "requestContext": {
-     "accountId": "035170473189",
-     "apiId": "zo60u45plb",
      "httpMethod": "POST",
      "identity": {
        "accessKey": "",
@@ -317,8 +313,6 @@ class TestLambda_handler(TestCase):
      "simulate": "True"
    },
    "requestContext": {
-     "accountId": "035170473189",
-     "apiId": "zo60u45plb",
      "httpMethod": "POST",
      "identity": {
        "accessKey": "",

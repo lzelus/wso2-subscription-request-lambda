@@ -40,8 +40,6 @@ work on *nix based systems.
     will do the following:
         1. Configure the `POST` method on the `/subscriptionRequests` resource to invoke the `WSO2SubscriptionRequest` lambda as a `lamba_proxy`.
     1. A stage variable must be set for each AWS stage this service is to be deployed to. The variable should be named `ApprovalBaseURL` and should be the url of the WSO2SubscriptionApproval service.
-1. The API Gateway stage should have the following environment variable set:
-    `approvalBaseURL` - should point to the URL of the WSO2SubscriptionApproval lambda has been deployed to in this stage.
 
 ### Configuration
 
