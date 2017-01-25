@@ -6,6 +6,8 @@ See [https://github.com/byu-oit-appdev/wso2-custom-workflow-extensions] for the 
 The process is as follows:
 ![Restricted Subscription Overall Process](docimages/WSO2RestrictedSubscription.png "Restricted Subscription Overall Process")
 
+The second lambda service involved in this process can be found at: https://github.com/byu-oit-appdev/WSO2SubscriptionApproval
+
 ### Requirements
 
 1. AWS Boto3 must be installed and configured with access keys for local development and testing.
@@ -36,21 +38,10 @@ work on *nix based systems.
 1. Create an AWS API Gateway API for the lambda.
     1. Import the `swagger.json` file to create the api definition. The `swagger.json` file has API Gateway extensions that
     will do the following:
-        1. Configure the `POST` method on the `/subscriptionRequests` resource to invoke the `WSO2SubscriptionRequest` lambda.
-        1. On the Integration Request for the method:
-            1. Create a new Body Mapping Template
-            1. Set the passthrough to 'when there are no templates defined'
-            1. Add a mapping template for `application/json`
-            1. Select 'Method Request passthrough' under generate template
-            1. Save the template
-        1. On the Intergration Response for the method:
-            1. Add a mapping template for `application/json` to the default method response
-                1. Use `$util.parseJson($input.json('$.body'))` as the template.
-            1. Add a method response for 400.
-                1. Use regex pattern `.*BadInput.*`
-                1. Add a mapping template for `application/json`
-                1. Use `$util.parseJson($input.json('$.errorMessage'))`
-
+        1. Configure the `POST` method on the `/subscriptionRequests` resource to invoke the `WSO2SubscriptionRequest` lambda as a `lamba_proxy`.
+    1. A stage variable must be set for each AWS stage this service is to be deployed to. The variable should be named `ApprovalBaseURL` and should be the url of the WSO2SubscriptionApproval service.
+1. The API Gateway stage should have the following environment variable set:
+    `approvalBaseURL` - should point to the URL of the WSO2SubscriptionApproval lambda has been deployed to in this stage.
 
 ### Configuration
 

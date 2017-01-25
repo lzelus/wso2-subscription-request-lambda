@@ -35,19 +35,18 @@ class RequestError(Exception):
 def respond(err, res=None):
     if err:
         errorMsg = dict(message=err.getMessage(), error=err.getStatusCode())
+        statusCode = err.getStatusCode()
         body = json.dumps(errorMsg)
-        err.setMessage = body
-        raise err
     else:
-        statusCode = '200'
+        statusCode = 200
         body = json.dumps(res)
 
     return {
         'statusCode': statusCode,
         'body': body,
         'headers': {
-            'Content-Type': 'application/json',
-        },
+            'Content-Type': 'application/json'
+        }
     }
 
 
@@ -55,9 +54,9 @@ def lambda_handler(event, context):
 
     # be sure event format is correct
     if not isinstance(
-            event, dict) or "params" not in event or "body-json" not in event:
+            event, dict) or "body" not in event:
         return respond(RequestError(
-            "BadInput", "Invalid event structure - Check API Gateway configuration"))
+            400, "Invalid event structure - Check API Gateway configuration"))
 
 # if event contains a test configuration then use it
     if isinstance(event, dict) and "test-config" in event:
@@ -71,22 +70,24 @@ def lambda_handler(event, context):
 
 
 # configure logging
-    if "debug" in event["params"]["querystring"] and event[
-            "params"]["querystring"]["debug"] == "True":
+    debugging = False
+    if "debug" in event["queryStringParameters"] and event[
+            "queryStringParameters"]["debug"] == "True":
         logger.setLevel(logging.DEBUG)
+        debugging = True
     else:
         logger.setLevel(logging.WARN)
 
 # configure sending of email
-    if "simulate" in event["params"]["querystring"] and event[
-            "params"]["querystring"]["simulate"] == "True":
+    if "simulate" in event["queryStringParameters"] and event[
+            "queryStringParameters"]["simulate"] == "True":
         simulateEmail = True
     else:
         simulateEmail = False
 
     logger.debug("Received event: " + json.dumps(event))
 
-    item = event['body-json']
+    item = json.loads(event['body'])
 
     subscriberEmail = ""
     if "subscriberEmail" in item and item["subscriberEmail"]:
@@ -102,12 +103,29 @@ def lambda_handler(event, context):
         item['status'] = "Bad Request - no subscriber email address"
         table.put_item(Item=item)
         return respond(RequestError(
-            "BadInput", "Subscriber Email Address required to process request"))
+            400, "Subscriber Email Address required to process request"))
+
+    approvalBaseURL = event['stageVariables']['approvalBaseURL']
+    approvalURL = approvalBaseURL + '/' + item['workflowReference'] + '?' + 'approved=True'
+    denialURL = approvalBaseURL + '/' + item['workflowReference'] + '?' + 'approved=False'
+
+    if (simulateEmail):
+        approvalURL = approvalURL + '&simulate=True'
+        denialURL = denialURL + '&simulate=True'
+
+    if (debugging):
+        approvalURL = approvalURL + '&debug=True'
+        denialURL = denialURL + '&debug=True'
+
 
     businessOwnerEmail = ""
     if "apiBusinessOwnerEmail" in item:
         businessOwnerEmail = item["apiBusinessOwnerEmail"]
         logger.debug("businessOwnerEmail = " + businessOwnerEmail)
+        boApprovalURL = approvalURL + '&sender=businessOwner'
+        boDenialURL = denialURL + '&sender=businessOwner'
+        item['approvalURL'] = boApprovalURL
+        item['denialURL'] = boDenialURL
         if businessOwnerEmail:
             sendEmail(
                 config,
@@ -120,6 +138,10 @@ def lambda_handler(event, context):
     if "apiTechnicalOwnerEmail" in item:
         technicalOwnerEmail = item["apiTechnicalOwnerEmail"]
         logger.debug("technicalOwnerEmail = " + technicalOwnerEmail)
+        toApprovalURL = approvalURL + '&sender=technicalOwner'
+        toDenialURL = denialURL + '&sender=technicalOwner'
+        item['approvalURL'] = toApprovalURL
+        item['denialURL'] = toDenialURL
         if technicalOwnerEmail:
             sendEmail(
                 config,
@@ -133,11 +155,18 @@ def lambda_handler(event, context):
         item["apiBusinessOwnerName"] = "WSO2 Administrator"
         item["apiTechnicalOwnerEmail"] = config['no_owner_email_address']
         item["apiTechnicalOwnerName"] = "WSO2 Administrator"
+        boApprovalURL = approvalURL + '&sender=businessOwner'
+        boDenialURL = denialURL + '&sender=businessOwner'
+        item['approvalURL'] = boApprovalURL
+        item['denialURL'] = boDenialURL
         sendEmail(config, [config['no_owner_email_address']],
                   config['no_owner_request'], item, simulateEmail)
 
     item["requestDT"] = time.strftime("%c %Z")
     item["status"] = "Waiting for Approval"
+    # don't save the urls - just needed for the email templates
+    del item["approvalURL"]
+    del item["denialURL"]
 
     table.put_item(Item=item)
 
