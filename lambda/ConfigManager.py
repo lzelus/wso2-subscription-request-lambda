@@ -118,13 +118,11 @@ def getConfigFromS3(s3path):
 def getFromMap(sourcemap, key, default=NO_DEFAULT):
     cur = sourcemap
     for p in key.split("/"):
-        if p not in cur and default != NO_DEFAULT:
-            return default
-        cur = cur[p]   # will raise key error if mising and no default was provied.
+        try:
+            cur = cur[p]
+        except (KeyError, TypeError):
+            if default != NO_DEFAULT:
+                return default
+            raise
     return cur
 
-def getRequiredFromMap(sourcemap, key, errorMessage):
-    try:
-        return getFromMap(sourcemap, key)
-    except KeyError:
-        raise RequestError("Required value not set. " + error_message.format(key=key))

@@ -7,7 +7,11 @@ fallback_email: lzelus@ucsd.edu
 
 properties:
   subscriber_email: |
-     #if(${request.subscriberclaims["http://wso2.org/claims/emailaddress"]})${request.subscriberclaims["http://wso2.org/claims/emailaddress"]}#end
+     #if(${request.subscriberclaims["http://wso2.org/claims/emailaddress"]} != "-")
+       ${request.subscriberclaims["http://wso2.org/claims/emailaddress"]}
+     #elseif(${request.subscriberclaims["http://wso2.org/claims/demail"]} != "-")
+       ${request.subscriberclaims["http://wso2.org/claims/demail"]}
+     #end
 
 # Configuration settings for each support APIM Instance.
 # The instance is selected by looking for the instance name in the callback url.
@@ -39,6 +43,20 @@ apimInstances:
       supportname: UCSD's APIM Administrator
       footer: |
         <p>If you have any questions please contact <a href="mailto:${properties.supportemail}">${properties.supportname}</a></p>
+
+  -
+    name: api.com
+    username: admin
+    password: pa$$word
+    no_owner_email_address: admin@api.com
+    source_email_address: do-not-reply@api.com
+    properties:
+      storeurl: https://api.com/store
+      supportemail: support@api.com
+      supportname: API.com's APIM Administrator
+      footer: |
+        <p>If you have any questions please contact <a href="mailto:${properties.supportemail}">${properties.supportname}</a></p>
+  
 
 
 # The following templates cover the email messages that can be sent.  Each template can have a subject, html and text element.
@@ -76,7 +94,7 @@ templates:
     subject: "Subscription Request  API: $request.apiName"
     html: |
       <p>Your subscription request to <a href="${properties.storeurl}/apis/info?name=${request.apiName}&version=${request.apiVersion}&provider=${request.apiProvider}">$request.apiName</a> has been APPROVED.</p>
-      <p>You can now invoke it with credentials from your ${request.applicationName}, which you can find on the <a href="${properties.storeurl}/site/pages/subscriptions.jag?selectedApp=${request.applicationName}">My Subscriptions</a> page.</p>
+      <p>You can now invoke it with credentials from your ${request.applicationName} application, which can be found on the <a href="${properties.storeurl}/site/pages/subscriptions.jag?selectedApp=${request.applicationName}">My Subscriptions</a> page.</p>
       $properties.footer
 
   # Sent to the user letting them know that the subscription request was rejected.

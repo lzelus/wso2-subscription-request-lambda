@@ -4,7 +4,7 @@ import boto3, botocore
 import json, os, time, re, sys
 import urllib2, base64
 import airspeed
-from ConfigManager import ConfigManager, getFromMap, getRequiredFromMap
+from ConfigManager import ConfigManager, getFromMap
 
 import logging
 logger = logging.getLogger(__name__)
@@ -27,13 +27,19 @@ def post(event, context):
     try:
         return RequestHandler(event, context).post()
     except RequestError as e:
-        respond(e.getMessage(), e.getStatusCode())
+        return messageResponse(e.message, e.statusCode)
+    except Exception as e:
+        logger.exception(e)
+        return messageResponse(str(e), 500)
 
 def get(event, context):
     try:
         return RequestHandler(event, context).get()
     except RequestError as e:
-        respond(e.getMessage(), e.getStatusCode())
+        return messageResponse(e.message, e.statusCode)
+    except Exception as e:
+        logger.exception(e)
+        return messageResponse(str(e), 500)
 
 class RequestHandler:
     def __init__(self, event, context):
@@ -61,7 +67,7 @@ class RequestHandler:
         self.sendNewRequestEmails()
         
         logger.debug("Responding.")
-        return respond({'message':"Subscription Request accepted"})
+        return messageResponse("Subscription Request Accepted")
 
 
     def get(self):
@@ -80,6 +86,11 @@ class RequestHandler:
                 errorMessage = "Request was already {item[status]} by {item[approver]} at {item[responseDT]}!".format(item=self.item)
             else:
                 self.approveReject(workflowReference, action)
+        
+        if getFromMap(self.event, 'headers/Accept', None) == "application/json":
+            resp = {'errorMessage':errorMessage}
+            resp.update(self.item)
+            return respond(resp)
 
         return {
             'statusCode': 200,
@@ -187,7 +198,7 @@ class RequestHandler:
         if not html and not text:
             raise EnvironmentError("Template " + key + " doesn't have a valid html or text template.")
         
-        if postscript:
+        if prefix:
             if html:
                 html = "<p>" + prefix + "</p><hr/>" + html
             if text:
@@ -199,16 +210,23 @@ class RequestHandler:
     def sendEmail(self, to, subject, text, html):
         
         message={
-            'Subject': {
-                'Data': subject
-            },
-            'Body': {
-            }
+            'Subject': {'Data': subject},
+            'Body': {}
         }
         if text:
             message['Body']['Text'] = {'Data':text}
         if html:
             message['Body']['Html'] = {'Data':html}
+        
+        if getFromMap(self.event, 'queryStringParameters/simulate', None):
+            logger.debug("Simulating email to " + to)
+            logger.debug("**** Begin Simulated Email ****")
+            if html:
+                logger.debug(message['Body']['Html']['Data'])
+            else:
+                logger.debug(message['Body']['Text']['Data'])
+            logger.debug("**** End Simulated Email ****")
+            return
 
         emailClient = boto3.client('ses')
         response = emailClient.send_email(
@@ -295,20 +313,11 @@ def getItem(workflowReference):
     logger.debug("read table entry ")
     logger.debug(response["Item"])
     return response["Item"]
-    
-
 
 class RequestError(Exception):
-
     def __init__(self, message, statusCode=500):
         self.statusCode = statusCode
         self.message = message
-
-    def getStatusCode(self):
-        return self.statusCode
-
-    def getMessage(self):
-        return self.message
 
     def __str__(self):
         return '{"statusCode": "%s", "message": "%s"}' % (self.statusCode, self.message)
@@ -328,6 +337,12 @@ def messageResponse(message, statusCode=200):
 def requires(source, keys, error_message):
     for k in keys:
         getRequiredFromMap(source, k, error_message)
+
+def getRequiredFromMap(sourcemap, key, errorMessage):
+    try:
+        return getFromMap(sourcemap, key)
+    except KeyError:
+        raise RequestError("Required value not set. " + errorMessage.format(key=key), 400)
 
 
 if __name__ == '__main__':

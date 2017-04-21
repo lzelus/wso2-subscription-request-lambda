@@ -1,143 +1,52 @@
-from unittest import TestCase
-
+import unittest
+import sys, os, logging, copy, json
 import boto3
 
-import lambda_function
-import json
+import test_config
+import wso2_subscription_approval
 
+testDir = os.path.dirname(__file__)
+lambdaDir = os.path.abspath(os.path.join(testDir, "../lambda"))
+os.chdir(lambdaDir)
 
-class TestLambda_handler(TestCase):
+os.environ['SubscriptionTable'] = "mid-apisub-dev-SubTable-8LMVLTGPDK1P"
 
-    def setUp(self):
-        self.deleteRecord()
-
-    def tearDown(self):
-        self.deleteRecord()
-
-    def deleteRecord(self):
+class TestLambda_handler(unittest.TestCase):
+    
+    def getTable(self):
         db = boto3.resource('dynamodb')
-        table = db.Table('WSO2SubscriptionRequest')
-        response = table.get_item(
-            Key={
-                'workflowReference': 'test1'
-            }
-        )
-        if "Item" in response:
-            table.delete_item(
-                Key={
-                'workflowReference': 'test1'
-                }
-            )
+        return db.Table(os.environ['SubscriptionTable'])
+    
+    def getItem(self, workflow="testWorkflow1"):
+        response = self.getTable().get_item(Key={'workflowReference': workflow})
+        return response.get('Item', None)
+    
+    def setUp(self):
+        self.deleteRecords()
+        self.getTable().put_item(Item=test_config.testItem)
+    
+    def tearDown(self):
+        self.deleteRecords()
+    
+    def deleteRecords(self):
+        for wf in ['testWorkflow1', 'testWorkflow2']:
+            self.getTable().delete_item(Key={'workflowReference': wf})
 
-    def test_success(self):
-        """Tests a successful run - uses the simluate querystring parameter to not actually send the emails"""
+    def test_post(self):
+        self.assertIsNone(self.getItem('testWorkflow2'))
+        response = wso2_subscription_approval.post(examplePost, {})
+        
+        self.assertEqual(response['statusCode'], 200)
+        self.assertIn("Subscription Request Accepted", response['body'])
+        
+        item = self.getItem('testWorkflow2')
+        self.assertIsNotNone(item)
+        self.assertEqual(item['apiName'], 'BioTest')
+        
 
-        print "\n\nrunning test_success"
-        print "-------------------------------------------\n\n"
-
-        testevent = json.loads("""
-{
-  "body": "{\\"taggedRestricted\\": \\"true\\",\\"apiVersion\\": \\"v1\\",\\"apiContext\\": \\"/byuapi/echo/v1\\",\\"applicationName\\": \\"testapp\\",\\"tier\\": \\"Unlimited\\",\\"apiTechnicalOwnerName\\": \\"technical\\",\\"workflowReference\\": \\"test1\\",\\"apiProvider\\": \\"BYU/bdm4\\",\\"apiBusinessOwnerName\\": \\"business\\",\\"apiName\\": \\"EchoService\\",\\"subscriberName\\": \\"Moore, Brent D\\",\\"subscriberId\\": \\"BYU/bdm4\\",\\"taggedDevelopment\\": \\"true\\",\\"subscriberEmail\\": \\"bdm4@byu.edu\\",\\"apiBusinessOwnerEmail\\": \\"bdm4@byu.edu\\",\\"apiTechnicalOwnerEmail\\": \\"brent_moore@byu.edu\\"}",
-  "headers": {
-    "Accept": "*/*",
-    "Accept-Encoding": "gzip, deflate",
-    "CloudFront-Forwarded-Proto": "https",
-    "CloudFront-Is-Desktop-Viewer": "true",
-    "CloudFront-Is-Mobile-Viewer": "false",
-    "CloudFront-Is-SmartTV-Viewer": "false",
-    "CloudFront-Is-Tablet-Viewer": "false",
-    "CloudFront-Viewer-Country": "US",
-    "Content-Type": "application/json",
-    "Host": "zo60u45plb.execute-api.us-west-2.amazonaws.com",
-    "User-Agent": "PostmanRuntime/3.0.9",
-    "Via": "1.1 199c9bce22bd411402daf00db8dbb17d.cloudfront.net (CloudFront)",
-    "X-Amz-Cf-Id": "6bQFsGxtvTkQvmTm7hzPkvChhLMBxivOnc7Z45GdcSoQlcxOm3KSRw==",
-    "X-Forwarded-For": "45.56.28.214, 205.251.214.107",
-    "X-Forwarded-Port": "443",
-    "X-Forwarded-Proto": "https",
-    "cache-control": "no-cache"
-  },
-  "httpMethod": "POST",
-  "isBase64Encoded": "false",
-  "path": "/subscriptionRequests",
-  "pathParameters": "",
-  "queryStringParameters": {
-    "debug": "True",
-    "simulate": "True"
-  },
-  "requestContext": {
-    "httpMethod": "POST",
-    "identity": {
-      "accessKey": "",
-      "accountId": "",
-      "apiKey": "",
-      "caller": "",
-      "cognitoAuthenticationProvider": "",
-      "cognitoAuthenticationType": "",
-      "cognitoIdentityId": "",
-      "cognitoIdentityPoolId": "",
-      "sourceIp": "45.56.28.214",
-      "user": "",
-      "userAgent": "PostmanRuntime/3.0.9",
-      "userArn": ""
-    },
-    "requestId": "b6cd9fa7-c66e-11e6-8efc-11e6514ac918",
-    "resourceId": "6f74y3",
-    "resourcePath": "/subscriptionRequests",
-    "stage": "bdmtest"
-  },
-  "resource": "/subscriptionRequests",
-  "stageVariables":
-  {
-      "approvalBaseURL": "https://zo60u45plb.execute-api.us-west-2.amazonaws.com/bdmtest/subscriptionApprovals"
-  }
-  ,
-  "test-config": {
-    "business_owner_request": {
-      "email_subject": "API subscription request",
-      "template": "bo_request.tem"
-    },
-    "no_owner_email_address": "no-owner-email",
-    "no_owner_request": {
-      "email_subject": "API subscription received with no owners",
-      "template": "no_owner_request.tem"
-    },
-    "request_action_email_addresses": [
-      "brent_moore@byu.edu",
-      "bdm4aws@byu.edu"
-    ],
-    "request_action_required": {
-      "email_subject": "API subscription action required",
-      "template": "temp_action_required.tem"
-    },
-    "source_email_address": "bdm4aws@byu.edu",
-    "subscriber_request": {
-      "email_subject": "API subscription request received",
-      "template": "subscriber_request.tem"
-    },
-    "technical_owner_request": {
-      "email_subject": "API subscription request",
-      "template": "to_request.tem"
-    }
-  }
-}
-
-            """)
-
-        testcontext = testevent['requestContext']
-        result = lambda_function.lambda_handler(testevent, testcontext)
-        print("result from test " + str(result))
-        self.assertEqual(
-            200,
-            result['statusCode'],
-            "statusCode should be 200")
-        return
-
-    def test_invalid_event(self):
+    def test_invalid_post(self):
         """Tests that the event struture passed in has the required elements"""
-
-        print "\n\nrunning test_invalid_event"
-        print "-------------------------------------------\n\n"
+        
         testevent = json.loads("""
         {
           "params": {
@@ -148,235 +57,71 @@ class TestLambda_handler(TestCase):
           }
         }
         """)
+        response = wso2_subscription_approval.post(testevent, {})
+        self.assertEqual(response['statusCode'], 400)
+    
+    def test_get(self):
+        """Tests looking up the current status of a request"""
+        
+        response = wso2_subscription_approval.get(test_config.exampleGet, {})
+        self.assertEqual(response['statusCode'], 200)
+        self.assertIn("BioTest", response['body'])
+        self.assertIn("<html>", response['body'])
+        self.assertEqual(response['headers']['Content-Type'], 'text/html')
+        
 
-        result = lambda_function.lambda_handler(testevent, None)
-        print("result from test " + str(result))
-        self.assertEqual(400, result['statusCode'],"statusCode should be 400")
-        body = json.loads(result['body'])
-        self.assertEqual("Invalid event structure - Check API Gateway configuration", body['message'],"invalid event")
+examplePost = {
+    u'resource': u'/subscriptionRequests',
+    u'requestContext': {
+        u'resourceId': u'i9mp34', 
+        u'apiId': u'n4zdmn1w9e',
+        u'resourcePath': u'/subscriptionRequests',
+        u'httpMethod': u'POST',
+        u'requestId': u'363c9b25-c320-11e6-9af8-9d9abcfb8998',
+        u'accountId': u'XXXXXXXXXX',
+        u'stage': u'Prod'},
+    u'queryStringParameters': {u'simulate': u'true'},
+    u'httpMethod': u'POST',
+    u'pathParameters': None,
+    u'headers': {
+        u'X-Forwarded-Port': u'443',
+        u'Host': u'n4zdmn1w9e.execute-api.us-west-2.amazonaws.com',
+        u'X-Forwarded-Proto': u'https',
+    },
+    u'stageVariables': None, 
+    u'path': u'/subscriptionRequests', 
+    u'isBase64Encoded': False
+}
 
-        return
-
-    def test_no_owner_emails(self):
-        """Tests to be sure that if no owner emails are present in the request it is sent to the
-        proper no-owner-email default email address"""
-
-        print "\n\nrunning test_no_owner_emails"
-        print "-------------------------------------------\n\n"
-        testevent = json.loads("""
- {
-   "body": "{\\"taggedRestricted\\": \\"true\\",\\"apiVersion\\": \\"v1\\",\\"apiContext\\": \\"/byuapi/echo/v1\\",\\"applicationName\\": \\"testapp\\",\\"tier\\": \\"Unlimited\\",\\"apiTechnicalOwnerName\\": \\"technical\\",\\"workflowReference\\": \\"test1\\",\\"apiProvider\\": \\"BYU/bdm4\\",\\"apiBusinessOwnerName\\": \\"business\\",\\"apiName\\": \\"EchoService\\",\\"subscriberName\\": \\"Moore, Brent D\\",\\"subscriberId\\": \\"BYU/bdm4\\",\\"subscriberEmail\\": \\"bdm4@byu.edu\\",\\"taggedDevelopment\\": \\"true\\"}",
-   "headers": {
-     "Accept": "*/*",
-     "Accept-Encoding": "gzip, deflate",
-     "CloudFront-Forwarded-Proto": "https",
-     "CloudFront-Is-Desktop-Viewer": "true",
-     "CloudFront-Is-Mobile-Viewer": "false",
-     "CloudFront-Is-SmartTV-Viewer": "false",
-     "CloudFront-Is-Tablet-Viewer": "false",
-     "CloudFront-Viewer-Country": "US",
-     "Content-Type": "application/json",
-     "Host": "zo60u45plb.execute-api.us-west-2.amazonaws.com",
-     "User-Agent": "PostmanRuntime/3.0.9",
-     "Via": "1.1 199c9bce22bd411402daf00db8dbb17d.cloudfront.net (CloudFront)",
-     "X-Amz-Cf-Id": "6bQFsGxtvTkQvmTm7hzPkvChhLMBxivOnc7Z45GdcSoQlcxOm3KSRw==",
-     "X-Forwarded-For": "45.56.28.214, 205.251.214.107",
-     "X-Forwarded-Port": "443",
-     "X-Forwarded-Proto": "https",
-     "cache-control": "no-cache"
-   },
-   "httpMethod": "POST",
-   "isBase64Encoded": "false",
-   "path": "/subscriptionRequests",
-   "pathParameters": "",
-   "queryStringParameters": {
-     "debug": "True",
-     "simulate": "True"
-   },
-   "requestContext": {
-     "httpMethod": "POST",
-     "identity": {
-       "accessKey": "",
-       "accountId": "",
-       "apiKey": "",
-       "caller": "",
-       "cognitoAuthenticationProvider": "",
-       "cognitoAuthenticationType": "",
-       "cognitoIdentityId": "",
-       "cognitoIdentityPoolId": "",
-       "sourceIp": "45.56.28.214",
-       "user": "",
-       "userAgent": "PostmanRuntime/3.0.9",
-       "userArn": ""
-     },
-     "requestId": "b6cd9fa7-c66e-11e6-8efc-11e6514ac918",
-     "resourceId": "6f74y3",
-     "resourcePath": "/subscriptionRequests",
-     "stage": "bdmtest"
-   },
-   "resource": "/subscriptionRequests",
-  "stageVariables":
-  {
-      "approvalBaseURL": "https://zo60u45plb.execute-api.us-west-2.amazonaws.com/bdmtest/subscriptionApprovals"
-  },
-   "test-config": {
-     "business_owner_request": {
-       "email_subject": "API subscription request",
-       "template": "bo_request.tem"
-     },
-     "no_owner_email_address": "no-owner-email",
-     "no_owner_request": {
-       "email_subject": "API subscription received with no owners",
-       "template": "no_owner_request.tem"
-     },
-     "request_action_email_addresses": [
-       "brent_moore@byu.edu",
-       "bdm4aws@byu.edu"
-     ],
-     "request_action_required": {
-       "email_subject": "API subscription action required",
-       "template": "temp_action_required.tem"
-     },
-     "source_email_address": "bdm4aws@byu.edu",
-     "subscriber_request": {
-       "email_subject": "API subscription request received",
-       "template": "subscriber_request.tem"
-     },
-     "technical_owner_request": {
-       "email_subject": "API subscription request",
-       "template": "to_request.tem"
-     }
-   }
- }
-
-        """)
-
-        result = lambda_function.lambda_handler(testevent, None)
-        print("result from test " + str(result))
-        result_body = json.loads(result['body'])
-        self.assertEqual(
-            200,
-            result['statusCode'],
-            "statusCode should be 200")
-        self.assertEqual(
-            "WSO2 Administrator",
-            result_body['apiBusinessOwnerName'],
-            "Business Owner should be WSO2 Administrator")
-        self.assertEqual(
-            "WSO2 Administrator",
-            result_body['apiTechnicalOwnerName'],
-            "Technical Owner should be WSO2 Administrator")
-        self.assertEqual(
-            "no-owner-email",
-            result_body['apiTechnicalOwnerEmail'],
-            "Technical Owner Email should be no-owner-email")
-        self.assertEqual(
-            "no-owner-email",
-            result_body['apiBusinessOwnerEmail'],
-            "Business Owner Email should be no-owner-email")
-        return
-
-    def test_no_subscriber(self):
-        """Tests to be sure there is always a subscriber email address"""
-
-        print "\n\nrunning test_no_subscriber"
-        print "-------------------------------------------\n\n"
-
-        testevent = json.loads("""
- {
-  "body": "{\\"taggedRestricted\\": \\"true\\",\\"apiVersion\\": \\"v1\\",\\"apiContext\\": \\"/byuapi/echo/v1\\",\\"applicationName\\": \\"testapp\\",\\"tier\\": \\"Unlimited\\",\\"apiTechnicalOwnerName\\": \\"technical\\",\\"workflowReference\\": \\"test1\\",\\"apiProvider\\": \\"BYU/bdm4\\",\\"apiBusinessOwnerName\\": \\"business\\",\\"apiName\\": \\"EchoService\\",\\"subscriberName\\": \\"Moore, Brent D\\",\\"subscriberId\\": \\"BYU/bdm4\\",\\"taggedDevelopment\\": \\"true\\",\\"apiBusinessOwnerEmail\\": \\"bdm4@byu.edu\\",\\"apiTechnicalOwnerEmail\\": \\"brent_moore@byu.edu\\"}",
-   "headers": {
-     "Accept": "*/*",
-     "Accept-Encoding": "gzip, deflate",
-     "CloudFront-Forwarded-Proto": "https",
-     "CloudFront-Is-Desktop-Viewer": "true",
-     "CloudFront-Is-Mobile-Viewer": "false",
-     "CloudFront-Is-SmartTV-Viewer": "false",
-     "CloudFront-Is-Tablet-Viewer": "false",
-     "CloudFront-Viewer-Country": "US",
-     "Content-Type": "application/json",
-     "Host": "zo60u45plb.execute-api.us-west-2.amazonaws.com",
-     "User-Agent": "PostmanRuntime/3.0.9",
-     "Via": "1.1 199c9bce22bd411402daf00db8dbb17d.cloudfront.net (CloudFront)",
-     "X-Amz-Cf-Id": "6bQFsGxtvTkQvmTm7hzPkvChhLMBxivOnc7Z45GdcSoQlcxOm3KSRw==",
-     "X-Forwarded-For": "45.56.28.214, 205.251.214.107",
-     "X-Forwarded-Port": "443",
-     "X-Forwarded-Proto": "https",
-     "cache-control": "no-cache"
-   },
-   "httpMethod": "POST",
-   "isBase64Encoded": "false",
-   "path": "/subscriptionRequests",
-   "pathParameters": "",
-   "queryStringParameters": {
-     "debug": "True",
-     "simulate": "True"
-   },
-   "requestContext": {
-     "httpMethod": "POST",
-     "identity": {
-       "accessKey": "",
-       "accountId": "",
-       "apiKey": "",
-       "caller": "",
-       "cognitoAuthenticationProvider": "",
-       "cognitoAuthenticationType": "",
-       "cognitoIdentityId": "",
-       "cognitoIdentityPoolId": "",
-       "sourceIp": "45.56.28.214",
-       "user": "",
-       "userAgent": "PostmanRuntime/3.0.9",
-       "userArn": ""
-     },
-     "requestId": "b6cd9fa7-c66e-11e6-8efc-11e6514ac918",
-     "resourceId": "6f74y3",
-     "resourcePath": "/subscriptionRequests",
-     "stage": "bdmtest"
-   },
-   "resource": "/subscriptionRequests",
-  "stageVariables":
-  {
-      "approvalBaseURL": "https://zo60u45plb.execute-api.us-west-2.amazonaws.com/bdmtest/subscriptionApprovals"
-  },
-   "test-config": {
-     "business_owner_request": {
-       "email_subject": "API subscription request",
-       "template": "bo_request.tem"
-     },
-     "no_owner_email_address": "no-owner-email",
-     "no_owner_request": {
-       "email_subject": "API subscription received with no owners",
-       "template": "no_owner_request.tem"
-     },
-     "request_action_email_addresses": [
-       "brent_moore@byu.edu",
-       "bdm4aws@byu.edu"
-     ],
-     "request_action_required": {
-       "email_subject": "API subscription action required",
-       "template": "temp_action_required.tem"
-     },
-     "source_email_address": "bdm4aws@byu.edu",
-     "subscriber_request": {
-       "email_subject": "API subscription request received",
-       "template": "subscriber_request.tem"
-     },
-     "technical_owner_request": {
-       "email_subject": "API subscription request",
-       "template": "to_request.tem"
-     }
-   }
- }
-        """)
-
-        testcontext = testevent['requestContext']
-        result = lambda_function.lambda_handler(testevent, testcontext)
-        print("result from test " + str(result))
-        self.assertEqual(400, result['statusCode'],"statusCode should be 400")
-        body = json.loads(result['body'])
-        self.assertEqual("Subscriber Email Address required to process request", body['message'],"subscriber email required")
-
-        return
+examplePost['body'] = """{
+    "subscriberclaims": {
+        "http://wso2.org/claims/organization": "org", 
+        "http://wso2.org/claims/country": "country", 
+        "http://wso2.org/claims/emailaddress": "jsmith@api.com", 
+        "http://wso2.org/claims/mobile": "12345", 
+        "http://wso2.org/claims/streetaddress": "add", 
+        "http://wso2.org/claims/role": "admin,Internal/subscriber,Internal/everyone", 
+        "http://wso2.org/claims/telephone": "1234", 
+        "http://wso2.org/claims/givenname": "first", 
+        "http://wso2.org/claims/lastname": "last"
+    }, 
+    "apiProvider": "dyl011", 
+    "workflowReference": "testWorkflow2", 
+    "apiContext": "/biotest/v1", 
+    "apiVersion": "v1", 
+    "tier": "Unlimited", 
+    "apiName": "BioTest", 
+    "applicationName": "TestApp",
+    "apiTechnicalOwnerName": "Owner, Technical", 
+    "apiTechnicalOwnerEmail": "tech@api.com", 
+    "apiBusinessOwnerName": "Owner, Business", 
+    "apiBusinessOwnerEmail": "business@api.com", 
+    "subscriberId": "jsmith", 
+    "callbackUrl": "https://api.com:8243/services/WorkflowCallbackService"
+}"""
 
 if __name__ == '__main__':
+    logging.basicConfig()
+    logging.getLogger(__name__).setLevel(logging.DEBUG)
+    logger = logging.getLogger(__name__)
     unittest.main()

@@ -19,8 +19,8 @@ class TestConfig(TestCase):
     def test_basics(self):
         handler = makeDefaultHandler()
 
-        self.assertEquals('testValue', handler.config.get('testKey'), "Simple lookup")
-        self.assertEquals('defaultValue', handler.config.get('missingKey', 'defaultValue'), "Checking with default value.")
+        self.assertEqual('testValue', handler.config.get('testKey'), "Simple lookup")
+        self.assertEqual('defaultValue', handler.config.get('missingKey', 'defaultValue'), "Lookup with default value.")
 
         with self.assertRaises(EnvironmentError):
             handler.config.get('missingKey')
@@ -28,15 +28,21 @@ class TestConfig(TestCase):
     def test_apimInstance(self):
         handler = makeDefaultHandler()
 
-        self.assertEquals('testValue', handler.config.get('testKey'))
+        self.assertEqual('testValue', handler.config.get('testKey'))
 
+        # now test that the value is different for requests comming from a different source
         handler = makeDefaultHandler()
         handler.item['callbackUrl'] = "https://override.com:8243/services/WorkflowCallbackService"
-        self.assertEquals('overriddenValue', handler.config.get('testKey'))
+        self.assertEqual('overriddenValue', handler.config.get('testKey'))
         
         with self.assertRaises(EnvironmentError):
             handler.config.get('missingKey')
     
+    def test_template(self):
+        handler = makeDefaultHandler()
+        
+        self.assertEqual("Static", handler.processTemplate("Static"))
+        self.assertEqual("testValue", handler.processTemplate("${properties.testProperty}"), "Property Usage")
 
 class TestEmail(TestCase):
     
@@ -46,6 +52,7 @@ class TestEmail(TestCase):
     
     def makeHandler(self, event=None, context=None):
         handler = makeDefaultHandler(event,context)
+        # Override the normal email sending method with local version to catch and check emails that would have been sent.
         import types
         handler.sendEmail = types.MethodType(self.sendEmail, handler)
         return handler
@@ -59,7 +66,7 @@ class TestEmail(TestCase):
     def test_NewRequestEmails(self):
         h = self.makeHandler()
         h.sendNewRequestEmails()
-        self.assertEquals({'business@api.com', 'tech@api.com', 'jsmith@api.com'}, self.getEmailTargets())
+        self.assertEqual({'business@api.com', 'tech@api.com', 'jsmith@api.com'}, self.getEmailTargets())
     
     def test_SendNoOwnerEmail(self):
         h = self.makeHandler()
@@ -68,28 +75,28 @@ class TestEmail(TestCase):
         
         h.sendNewRequestEmails()
         
-        self.assertEquals(2, len(self.emails), "Two emails should have been sent, no-owner and subscriber")
+        self.assertEqual(2, len(self.emails), "Two emails should have been sent, no-owner and subscriber")
         (to, subject, text, html) = self.emails[0]
-        self.assertEquals('no-owner@api.com', to)
+        self.assertEqual('no-owner@api.com', to)
     
     def test_RestrictedEmails(self):
         h = self.makeHandler()
         h.context['test-config']['permitted_emails'] = ['te.*@api.com']
         h.sendNewRequestEmails()
-        self.assertEquals({'tech@api.com'}, self.getEmailTargets(), "The only email sent should be to tech")
+        self.assertEqual({'tech@api.com'}, self.getEmailTargets(), "The only email sent should be to tech")
 
         h = self.makeHandler()
         h.context['test-config']['permitted_emails'] = ['te.*@api.com']
         h.context['test-config']['fallback_email'] = 'fallback@api.com'
         h.sendNewRequestEmails()
-        self.assertEquals({'tech@api.com', 'fallback@api.com'}, self.getEmailTargets(), "The only email sent should be to tech")
+        self.assertEqual({'tech@api.com', 'fallback@api.com'}, self.getEmailTargets(), "The only email sent should be to tech")
     
     def test_CompletedRequestEmails(self):
         h = self.makeHandler()
         h.item['approver'] = "tech@api.com"
         h.item['status'] = 'APPROVED'
         h.sendCompletedRequestEmails()
-        self.assertEquals({'business@api.com', 'tech@api.com', 'jsmith@api.com'}, self.getEmailTargets())
+        self.assertEqual({'business@api.com', 'tech@api.com', 'jsmith@api.com'}, self.getEmailTargets())
 
 def makeDefaultHandler(event=None, context=None):
     if not event:
@@ -110,6 +117,7 @@ no_owner_email_address: no-owner@api.com
 properties:
   subscriber_email: |
       #if(${request.subscriberclaims["http://wso2.org/claims/emailaddress"]})${request.subscriberclaims["http://wso2.org/claims/emailaddress"]}#end
+  testProperty: testValue
  
 apimInstances:
     - name: api.com
@@ -143,88 +151,66 @@ testContext = {
 }
 
 testItem = {
-    "applicationName": "TestApp", 
-    "subscriberclaims": {
-        "http://wso2.org/claims/pid": "PID1234", 
-        "http://wso2.org/claims/lastname": "Smith", 
-        "http://wso2.org/claims/eid": "EID1234", 
-        "http://wso2.org/claims/role": "Internal/everyone", 
-        "http://wso2.org/claims/networkuserid": "jsmith", 
-        "http://wso2.org/claims/emailaddress": "jsmith@api.com", 
-        "http://wso2.org/claims/adusername": "-", 
-        "http://wso2.org/claims/givenname": "John", 
+    u'status': u'Waiting for Approval', 
+    u'subscriberclaims': {
+        u'http://wso2.org/claims/organization': u'org', 
+        u'http://wso2.org/claims/emailaddress': u'jsmith@api.com', 
+        u'http://wso2.org/claims/lastname': u'last', 
+        u'http://wso2.org/claims/role': u'admin,Internal/subscriber,Internal/everyone', 
+        u'http://wso2.org/claims/telephone': u'1234', 
+        u'http://wso2.org/claims/mobile': u'12345', 
+        u'http://wso2.org/claims/streetaddress': u'add', 
+        u'http://wso2.org/claims/country': u'country', 
+        u'http://wso2.org/claims/givenname': u'first'
     }, 
-    "apiProvider": "dyl011", 
-    "workflowReference": "da2c82ab-009d-4af1-8d24-3524d318af85", 
-    "apiContext": "/ims/v1", 
-    "apiVersion": "v1", 
-    "tier": "Unlimited", 
-    "apiName": "BioTest", 
-    "apiTechnicalOwnerName": "Owner, Technical", 
-    "apiTechnicalOwnerEmail": "tech@api.com", 
-    "apiBusinessOwnerName": "Owner, Business", 
-    "apiBusinessOwnerEmail": "business@api.com", 
-    "subscriberId": "jsmith", 
-    "callbackUrl": "https://api.com:8243/services/WorkflowCallbackService"
+    u'apiTechnicalOwnerName': u'Owner, Technical', 
+    u'apiProvider': u'dyl011', 
+    u'apiBusinessOwnerName': u'Owner, Business', 
+    u'workflowReference': u'testWorkflow1', 
+    u'apiContext': u'/biotest/v1', 
+    u'apiVersion': u'v1', 
+    u'apiTechnicalOwnerEmail': u'tech@api.com', 
+    u'tier': u'Unlimited', 
+    u'requestDT': u'Wed Jan 25 17:58:15 2017 PST', 
+    u'apiName': u'BioTest', 
+    u'apiBusinessOwnerEmail': u'business@api.com', 
+    u'callbackUrl': u'https://api.com:8243/services/WorkflowCallbackService', 
+    u'subscriberId': u'jsmith', 
+    u'applicationName': u'TestApp'
 }
 
 
 exampleGet = {
     u'body': None,
-        u'resource': u'/subscriptionRequests/{workflowReference}',
-        u'requestContext': {
-            u'resourceId': u'86aip8',
-            u'apiId': u'n4zdmn1w9e',
-            u'resourcePath': u'/subscriptionRequests/{workflowReference}', 
-            u'httpMethod': u'GET', 
-            u'requestId': u'cd2d87db-c303-11e6-b8dc-613344667c2c', 
-            u'accountId': u'693896114532', 
-            u'identity': {
-                u'apiKey': None, 
-                u'userArn': None, 
-                u'cognitoAuthenticationType': None, 
-                u'accessKey': None, 
-                u'caller': None, 
-                u'userAgent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', 
-                u'user': None, 
-                u'cognitoIdentityPoolId': None, 
-                u'cognitoIdentityId': None, 
-                u'cognitoAuthenticationProvider': None, 
-                u'sourceIp': u'132.239.181.86', 
-                u'accountId': None
-            }, 
-            u'stage': u'Prod'
-        }, 
-        u'queryStringParameters': {}, 
-        u'httpMethod': u'GET', 
-        u'pathParameters': {
-            u'workflowReference': u'aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5'
-        }, 
-        u'headers': {
-            u'Via': u'1.1 69ecfaf49062e67077b5f6c4aaf1881f.cloudfront.net (CloudFront)', 
-            u'Accept-Language': u'en-US,en;q=0.8', 
-            u'CloudFront-Is-Desktop-Viewer': u'true', 
-            u'CloudFront-Is-SmartTV-Viewer': u'false', 
-            u'CloudFront-Is-Mobile-Viewer': u'false', 
-            u'X-Forwarded-For': u'132.239.181.86, 205.251.214.113', 
-            u'CloudFront-Viewer-Country': u'US', 
-            u'Accept': u'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8', 
-            u'Upgrade-Insecure-Requests': u'1', 
-            u'X-Forwarded-Port': u'443', 
-            u'Host': u'n4zdmn1w9e.execute-api.us-west-2.amazonaws.com', 
-            u'X-Forwarded-Proto': u'https', 
-            u'X-Amz-Cf-Id': u'PI_q8UmyQPkFLU9gezaJm6sVXULxMwmQtAvUuHUT7lHjiogzKnQROw==', 
-            u'CloudFront-Is-Tablet-Viewer': u'false', 
-            u'Cache-Control': u'max-age=0', 
-            u'User-Agent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', 
-            u'CloudFront-Forwarded-Proto': u'https', 
-            u'Accept-Encoding': u'gzip, deflate, sdch, br'
-        }, 
-        u'stageVariables': None, 
-        u'path': u'/subscriptionRequests/aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5', 
-        u'isBase64Encoded': False
+    u'resource': u'/subscriptionRequests/{workflowReference}',
+    u'requestContext': {
+        u'resourceId': u'86aip8',
+        u'apiId': u'n4zdmn1w9e',
+        u'resourcePath': u'/subscriptionRequests/{workflowReference}',
+        u'httpMethod': u'GET',
+        u'requestId': u'cd2d87db-c303-11e6-b8dc-613344667c2c',
+        u'accountId': u'XXXXXXXXX',
+        u'stage': u'Prod'
+    },
+    u'queryStringParameters': {
+        u'simulte': u'true'
+    },
+    u'httpMethod': u'GET',
+    u'pathParameters': {
+        u'workflowReference': u'testWorkflow1'
+    },
+    u'headers': {
+        u'X-Forwarded-Port': u'443',
+        u'Host': u'n4zdmn1w9e.execute-api.us-west-2.amazonaws.com',
+        u'X-Forwarded-Proto': u'https',
+        u'Accept': u'application/json'
+    },
+    u'stageVariables': None,
+    u'path': u'/subscriptionRequests/aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5',
+    u'isBase64Encoded': False
 }
 
 if __name__ == '__main__':
     logging.basicConfig()
+    logging.getLogger(__name__).setLevel(logging.DEBUG)
     unittest.main()
