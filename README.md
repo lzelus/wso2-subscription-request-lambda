@@ -9,6 +9,8 @@ See the UCSD SubscriptionCreationWorkflowExecutor project for an implementation 
 The process is as follows:
 ![Restricted Subscription Overall Process](docimages/WSO2RestrictedSubscription.png "Restricted Subscription Overall Process")
 
+This project is a continutation of the work origionally done by BYU (https://github.com/byu-oit-appdev/wso2-subscription-request-lambda).  With their permission we have re-released it under the BSD liscense.
+
 ### Requirements
 To Deploy you will need:
 
