@@ -2,7 +2,7 @@
 
 import boto3, botocore
 import json, os, time, re, sys
-import urllib2, base64
+import urllib, urllib2, base64
 import airspeed
 from ConfigManager import ConfigManager, getFromMap
 
@@ -110,26 +110,21 @@ class RequestHandler:
         item['approver'] = getRequiredFromMap(self.event, 'queryStringParameters/approver', "Must provide an approver query parameter when attempting to " + action)
         item["responseDT"] = time.strftime("%c %Z")
     
+        
+        data = urllib.urlencode({
+            'workflowReference':workflowReference,
+            'status':item['status'],
+            'description':item['status'] + " by the AWS WSO2 Subscription service."
+        })
+
+        req = urllib2.Request(url=item['callbackUrl'], data=data)
+
+        req.add_header("Authorization", "Basic " + self.getAdminCreds())
+
         logger.debug("Calling %s to approve workflow", item['callbackUrl'])
 
-        data = """
-        <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:cal="http://callback.workflow.apimgt.carbon.wso2.org">
-           <soapenv:Header/>
-           <soapenv:Body>
-              <cal:resumeEvent>
-                 <cal:workflowReference>{workflowReference}</cal:workflowReference>
-                 <cal:status>{status}</cal:status>
-                 <cal:description>{status} by the AWS WSO2 Subscription service.</cal:description>
-              </cal:resumeEvent>
-           </soapenv:Body>
-        </soapenv:Envelope>
-        """.format(workflowReference=workflowReference, status=item['status'])
-    
-        req = urllib2.Request(url=item['callbackUrl'], data=data, headers={'Content-Type': 'text/xml'})
-        req.add_header("Authorization", "Basic " + self.getAdminCreds())
-        req.add_header("SOAPAction", "urn:resumeEvent")
         try:
-            urllib2.urlopen(req)
+            urllib2.urlopen(req, timeout=6)
         except Exception as e:
             logger.exception("Failed to approve the workflow on the remote server.")
             raise RequestError("Failed to approve the workflow on the remote server. The server returned " + str(e))
@@ -141,9 +136,16 @@ class RequestHandler:
         self.sendCompletedRequestEmails()
     
     def templateTest(self):
-        workflowReference = getRequiredFromMap(self.event, 'pathParameters/workflowReference', "A WorkflowReferenceId must be set on the url.")
-        self.item = getItem(workflowReference)
-        self.item['approver'] = 'admin'
+        # workflowReference = getRequiredFromMap(self.event, 'pathParameters/workflowReference', "A WorkflowReferenceId must be set on the url.")
+        # self.item = getItem(workflowReference)
+        # self.item['approver'] = 'admin'
+        item = self.item = json.loads(self.event['body'])
+        item = {k:v for k,v in item.viewitems() if v}  # Remove blank entries as they aren't allowed in the DB
+        item["requestDT"] = time.strftime("%c %Z")
+        item["status"] = "Waiting for Approval"
+        
+        requires(item, ['workflowReference', 'subscriberId', 'apiName', 'callbackUrl'], "Body must contain {key}.")
+        
         for name, template in self.config.get("templates").items():
             print "*********"
             print "Template " + name
@@ -353,23 +355,27 @@ if __name__ == '__main__':
     os.environ['SubscriptionTable'] = "mid-apisub-dev-SubTable-8LMVLTGPDK1P"
     os.environ['ConfigS3'] = "s3://middleware-tests/configs/mid-apisub-dev/config.yaml"
     
-    s3 = boto3.resource('s3')
-    obj = s3.Object('middleware-tests', 'configs/mid-apisub-dev/config.yaml')
-    with open("config.yaml", 'r') as stream:
-        obj.put(Body=stream)
+    import yaml
+    with open("../config.yaml", 'r') as stream:
+        testConfig = yaml.load(stream)
+    
+    # s3 = boto3.resource('s3')
+    # obj = s3.Object('middleware-tests', 'configs/mid-apisub-dev/config.yaml')
+    # with open("config.yaml", 'r') as stream:
+    #     obj.put(Body=stream)
     
     try:
         exampleGet = {u'body': None, u'resource': u'/subscriptionRequests/{workflowReference}', u'requestContext': {u'resourceId': u'86aip8', u'apiId': u'n4zdmn1w9e', u'resourcePath': u'/subscriptionRequests/{workflowReference}', u'httpMethod': u'GET', u'requestId': u'cd2d87db-c303-11e6-b8dc-613344667c2c', u'accountId': u'693896114532', u'identity': {u'apiKey': None, u'userArn': None, u'cognitoAuthenticationType': None, u'accessKey': None, u'caller': None, u'userAgent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', u'user': None, u'cognitoIdentityPoolId': None, u'cognitoIdentityId': None, u'cognitoAuthenticationProvider': None, u'sourceIp': u'132.239.181.86', u'accountId': None}, u'stage': u'Prod'}, u'queryStringParameters': {}, u'httpMethod': u'GET', u'pathParameters': {u'workflowReference': u'aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5'}, u'headers': {u'Via': u'1.1 69ecfaf49062e67077b5f6c4aaf1881f.cloudfront.net (CloudFront)', u'Accept-Language': u'en-US,en;q=0.8', u'CloudFront-Is-Desktop-Viewer': u'true', u'CloudFront-Is-SmartTV-Viewer': u'false', u'CloudFront-Is-Mobile-Viewer': u'false', u'X-Forwarded-For': u'132.239.181.86, 205.251.214.113', u'CloudFront-Viewer-Country': u'US', u'Accept': u'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8', u'Upgrade-Insecure-Requests': u'1', u'X-Forwarded-Port': u'443', u'Host': u'n4zdmn1w9e.execute-api.us-west-2.amazonaws.com', u'X-Forwarded-Proto': u'https', u'X-Amz-Cf-Id': u'PI_q8UmyQPkFLU9gezaJm6sVXULxMwmQtAvUuHUT7lHjiogzKnQROw==', u'CloudFront-Is-Tablet-Viewer': u'false', u'Cache-Control': u'max-age=0', u'User-Agent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', u'CloudFront-Forwarded-Proto': u'https', u'Accept-Encoding': u'gzip, deflate, sdch, br'}, u'stageVariables': None, u'path': u'/subscriptionRequests/aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5', u'isBase64Encoded': False}
-        print get(exampleGet, None)
+        print get(exampleGet, {'test-config': testConfig})
     
-        examplePost = {u'body': u'{"subscriberclaims": {"http://wso2.org/claims/organization": "org", "http://wso2.org/claims/country": "country", "http://wso2.org/claims/emailaddress": "admin@admin.com", "http://wso2.org/claims/mobile": "12345", "http://wso2.org/claims/streetaddress": "add", "http://wso2.org/claims/role": "admin,Internal/subscriber,Internal/everyone", "http://wso2.org/claims/telephone": "1234", "http://wso2.org/claims/givenname": "first", "http://wso2.org/claims/lastname": "last"}, "apiTechnicalOwnerEmail": "", "apiProvider": "admin", "apiName": "MergePDF", "callbackUrl": "https://api.ucsd.edu:8243/services/WorkflowCallbackService", "apiBusinessOwnerName": "", "subscriberId": "admin", "applicationName": "DefaultApplication", "tier": "Unlimited", "apiTechnicalOwnerName": "", "apiVersion": "1.0.0", "workflowReference": "aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5", "apiBusinessOwnerEmail": "", "apiContext": "/mergePDF/1.0.0"}', u'resource': u'/subscriptionRequests', u'requestContext': {u'resourceId': u'i9mp34', u'apiId': u'n4zdmn1w9e', u'resourcePath': u'/subscriptionRequests', u'httpMethod': u'POST', u'requestId': u'363c9b25-c320-11e6-9af8-9d9abcfb8998', u'accountId': u'693896114532', u'identity': {u'apiKey': None, u'userArn': None, u'cognitoAuthenticationType': None, u'accessKey': None, u'caller': None, u'userAgent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', u'user': None, u'cognitoIdentityPoolId': None, u'cognitoIdentityId': None, u'cognitoAuthenticationProvider': None, u'sourceIp': u'132.239.181.86', u'accountId': None}, u'stage': u'Prod'}, u'queryStringParameters': None, u'httpMethod': u'POST', u'pathParameters': None, u'headers': {u'Origin': u'chrome-extension://fhbjgbiflinjbdggehcddcbncdddomop', u'Content-Type': u'application/json', u'Via': u'1.1 0c146399837c7d36c1f0f9d2636f8cf8.cloudfront.net (CloudFront)', u'Accept-Language': u'en-US,en;q=0.8', u'CloudFront-Is-Desktop-Viewer': u'true', u'CloudFront-Is-SmartTV-Viewer': u'false', u'CloudFront-Is-Mobile-Viewer': u'false', u'X-Forwarded-For': u'132.239.181.86, 205.251.214.61', u'CloudFront-Viewer-Country': u'US', u'Accept': u'*/*', u'User-Agent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', u'X-Forwarded-Port': u'443', u'Host': u'n4zdmn1w9e.execute-api.us-west-2.amazonaws.com', u'X-Forwarded-Proto': u'https', u'X-Amz-Cf-Id': u'75wuMnW1L15AtFAd8Y7-qD5RV6t5JGZ90Pf20EZ1b3xMU3UGT-BbyA==', u'CloudFront-Is-Tablet-Viewer': u'false', u'Cache-Control': u'no-cache', u'Postman-Token': u'8f080e24-8c91-7255-5c3d-f359e8700fff', u'CloudFront-Forwarded-Proto': u'https', u'Accept-Encoding': u'gzip, deflate, br'}, u'stageVariables': None, u'path': u'/subscriptionRequests', u'isBase64Encoded': False}
+        examplePost = {u'body': u'{"subscriberclaims": {"http://wso2.org/claims/organization": "org", "http://wso2.org/claims/country": "country", "http://wso2.org/claims/emailaddress": "admin@admin.com", "http://wso2.org/claims/mobile": "12345", "http://wso2.org/claims/streetaddress": "add", "http://wso2.org/claims/role": "admin,Internal/subscriber,Internal/everyone", "http://wso2.org/claims/telephone": "1234", "http://wso2.org/claims/givenname": "first", "http://wso2.org/claims/lastname": "last"}, "apiTechnicalOwnerEmail": "", "apiProvider": "admin", "apiName": "MergePDF", "callbackUrl": "https://api.ucsd.edu:8243/services/WorkflowCallbackService", "apiBusinessOwnerName": "BusinessOwner", "subscriberId": "admin", "applicationName": "DefaultApplication", "tier": "Unlimited", "apiTechnicalOwnerName": "", "apiVersion": "1.0.0", "workflowReference": "aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5", "apiBusinessOwnerEmail": "bo@example.com", "apiContext": "/mergePDF/1.0.0"}', u'resource': u'/subscriptionRequests', u'requestContext': {u'resourceId': u'i9mp34', u'apiId': u'n4zdmn1w9e', u'resourcePath': u'/subscriptionRequests', u'httpMethod': u'POST', u'requestId': u'363c9b25-c320-11e6-9af8-9d9abcfb8998', u'accountId': u'693896114532', u'identity': {u'apiKey': None, u'userArn': None, u'cognitoAuthenticationType': None, u'accessKey': None, u'caller': None, u'userAgent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', u'user': None, u'cognitoIdentityPoolId': None, u'cognitoIdentityId': None, u'cognitoAuthenticationProvider': None, u'sourceIp': u'132.239.181.86', u'accountId': None}, u'stage': u'Prod'}, u'queryStringParameters': None, u'httpMethod': u'POST', u'pathParameters': None, u'headers': {u'Origin': u'chrome-extension://fhbjgbiflinjbdggehcddcbncdddomop', u'Content-Type': u'application/json', u'Via': u'1.1 0c146399837c7d36c1f0f9d2636f8cf8.cloudfront.net (CloudFront)', u'Accept-Language': u'en-US,en;q=0.8', u'CloudFront-Is-Desktop-Viewer': u'true', u'CloudFront-Is-SmartTV-Viewer': u'false', u'CloudFront-Is-Mobile-Viewer': u'false', u'X-Forwarded-For': u'132.239.181.86, 205.251.214.61', u'CloudFront-Viewer-Country': u'US', u'Accept': u'*/*', u'User-Agent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', u'X-Forwarded-Port': u'443', u'Host': u'n4zdmn1w9e.execute-api.us-west-2.amazonaws.com', u'X-Forwarded-Proto': u'https', u'X-Amz-Cf-Id': u'75wuMnW1L15AtFAd8Y7-qD5RV6t5JGZ90Pf20EZ1b3xMU3UGT-BbyA==', u'CloudFront-Is-Tablet-Viewer': u'false', u'Cache-Control': u'no-cache', u'Postman-Token': u'8f080e24-8c91-7255-5c3d-f359e8700fff', u'CloudFront-Forwarded-Proto': u'https', u'Accept-Encoding': u'gzip, deflate, br'}, u'stageVariables': None, u'path': u'/subscriptionRequests', u'isBase64Encoded': False}
         # Warning: this will generate an email.
         # post(examplePost, {})
 
         getWithApprove = {u'body': None, u'resource': u'/subscriptionRequests/{workflowReference}', u'requestContext': {u'resourceId': u'86aip8', u'apiId': u'n4zdmn1w9e', u'resourcePath': u'/subscriptionRequests/{workflowReference}', u'httpMethod': u'GET', u'requestId': u'cd2d87db-c303-11e6-b8dc-613344667c2c', u'accountId': u'693896114532', u'identity': {u'apiKey': None, u'userArn': None, u'cognitoAuthenticationType': None, u'accessKey': None, u'caller': None, u'userAgent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', u'user': None, u'cognitoIdentityPoolId': None, u'cognitoIdentityId': None, u'cognitoAuthenticationProvider': None, u'sourceIp': u'132.239.181.86', u'accountId': None}, u'stage': u'Prod'}, u'queryStringParameters': {u'action': u'approve', u'approver': u'admin'}, u'httpMethod': u'GET', u'pathParameters': {u'workflowReference': u'aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5'}, u'headers': {u'Via': u'1.1 69ecfaf49062e67077b5f6c4aaf1881f.cloudfront.net (CloudFront)', u'Accept-Language': u'en-US,en;q=0.8', u'CloudFront-Is-Desktop-Viewer': u'true', u'CloudFront-Is-SmartTV-Viewer': u'false', u'CloudFront-Is-Mobile-Viewer': u'false', u'X-Forwarded-For': u'132.239.181.86, 205.251.214.113', u'CloudFront-Viewer-Country': u'US', u'Accept': u'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8', u'Upgrade-Insecure-Requests': u'1', u'X-Forwarded-Port': u'443', u'Host': u'n4zdmn1w9e.execute-api.us-west-2.amazonaws.com', u'X-Forwarded-Proto': u'https', u'X-Amz-Cf-Id': u'PI_q8UmyQPkFLU9gezaJm6sVXULxMwmQtAvUuHUT7lHjiogzKnQROw==', u'CloudFront-Is-Tablet-Viewer': u'false', u'Cache-Control': u'max-age=0', u'User-Agent': u'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/54.0.2840.98 Safari/537.36', u'CloudFront-Forwarded-Proto': u'https', u'Accept-Encoding': u'gzip, deflate, sdch, br'}, u'stageVariables': None, u'path': u'/subscriptionRequests/aa8a36b7-56f2-40d3-b8bc-1c524ac9acc5', u'isBase64Encoded': False}
-        get(getWithApprove, None)
+        get(getWithApprove, {'test-config': testConfig})
         
-        RequestHandler(exampleGet, None).templateTest()
+        RequestHandler(examplePost, {'test-config': testConfig}).templateTest()
 
     except Exception as e:
         logger.exception(e)
