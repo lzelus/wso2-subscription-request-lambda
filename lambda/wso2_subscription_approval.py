@@ -63,7 +63,7 @@ class RequestHandler:
         logger.debug("Saving item to DB")
         save(item)
         
-        logger.debug("New request recieved, sending out emails")
+        logger.debug("New request received, sending out emails")
         self.sendNewRequestEmails()
         
         logger.debug("Responding.")
@@ -121,10 +121,10 @@ class RequestHandler:
 
         req.add_header("Authorization", "Basic " + self.getAdminCreds())
 
-        logger.debug("Calling %s to approve workflow", item['callbackUrl'])
+        logger.debug("Calling %s to %s workflow", item['callbackUrl'], action)
 
         try:
-            urllib2.urlopen(req, timeout=6)
+            urllib2.urlopen(req, timeout=20)
         except Exception as e:
             logger.exception("Failed to approve the workflow on the remote server.")
             raise RequestError("Failed to approve the workflow on the remote server. The server returned " + str(e))
