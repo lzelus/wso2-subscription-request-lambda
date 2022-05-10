@@ -19,7 +19,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: wso2_subscription_approval.post
-      Runtime: python2.7
+      Runtime: python3.9
       Role: !GetAtt ServiceRole.Arn
       Environment:
         Variables:
@@ -37,7 +37,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       Handler: wso2_subscription_approval.get
-      Runtime: python2.7
+      Runtime: python3.9
       Role: !GetAtt ServiceRole.Arn
       Environment:
         Variables:
