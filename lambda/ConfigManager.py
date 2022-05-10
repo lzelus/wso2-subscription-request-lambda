@@ -56,6 +56,7 @@ class ConfigManager(object):
         
         for server in getFromMap(self.globalConfig, "apimInstances"):
             if server['name'] in self.requestHandler.item['callbackUrl']:
+                logger.debug("Loading config for " + server['name'])
                 self.instanceConfig = server
 
         if not self.instanceConfig:

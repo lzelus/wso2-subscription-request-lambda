@@ -3,3 +3,8 @@
 UCSD-Readme.md
 
 *.pyc
+
+cloudFormationConfig-s3.yaml
+config.yaml
+
+Pipfile.lock
