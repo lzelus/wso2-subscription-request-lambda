@@ -115,7 +115,7 @@ class RequestHandler:
             'workflowReference':workflowReference,
             'status':item['status'],
             'description':item['status'] + " by the AWS WSO2 Subscription service."
-        })
+        }).encode("utf-8")
 
         req = urllib.request.Request(url=item['callbackUrl'], data=data)
 
