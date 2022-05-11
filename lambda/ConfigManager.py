@@ -88,11 +88,11 @@ def getRawConfig():
         resp = getConfigFromS3(configS3Uri)
         if resp:
             logger.debug("Config successfully retrieved from " + configS3Uri)
-            return yaml.load(resp['Body'])
+            return yaml.safe_load(resp['Body'])
 
     logger.debug("Loading default config file")
     with open("config.yaml", 'r') as stream:
-        return yaml.load(stream)
+        return yaml.safe_load(stream)
     
 def getConfigFromS3(s3path):
     if not s3path.startswith("s3://") or not s3path.endswith(".yaml"):

@@ -111,7 +111,7 @@ def makeDefaultHandler(event=None, context=None):
 
 
 import yaml
-testconfig = yaml.load("""
+testconfig = yaml.safe_load("""
 testKey: testValue
 no_owner_email_address: no-owner@api.com
 properties:
