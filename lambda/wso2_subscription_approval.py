@@ -242,7 +242,9 @@ class RequestHandler:
     def getAdminCreds(self):
         username = self.config.get('username', errorMessage="The username for the current APIM have not been set.")
         password = self.config.get('password', errorMessage="The password for the current APIM have not been set.")
-        return base64.b64encode('%s:%s' % (username, password))
+        creds = '%s:%s' % (username, password)
+        b64creds = base64.b64encode(creds.encode('ascii'))
+        return b64creds.decode("ascii")
         
     def sendNewRequestEmails(self):
         bEmail = getFromMap(self.item, 'apiBusinessOwnerEmail', '')
