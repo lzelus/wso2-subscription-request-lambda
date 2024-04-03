@@ -134,6 +134,7 @@ class RequestHandler:
 
         req.add_header("Authorization", "Basic " + self.getAdminCreds())
 
+        # TODO: switch this to workflow_url
         logger.debug("Calling %s to %s workflow", item['callbackUrl'], action)
 
         try:
